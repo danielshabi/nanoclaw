@@ -154,17 +154,33 @@ async function connectSocket(
     }
 
     if (connection === 'open') {
-      fs.writeFileSync(STATUS_FILE, 'authenticated');
       // Clean up QR file now that we're connected
       try {
         fs.unlinkSync(QR_FILE);
       } catch {}
-      console.log('\n✓ Successfully authenticated with WhatsApp!');
-      console.log('  Credentials saved to store/auth/');
-      console.log('  You can now start the NanoClaw service.\n');
+      console.log('\n⟳ Connection open — waiting for registration to complete...');
 
-      // Give it a moment to save credentials, then exit
-      setTimeout(() => process.exit(0), 1000);
+      // Wait for registered: true before exiting (up to 15s)
+      let waited = 0;
+      const checkRegistered = setInterval(async () => {
+        const { state: freshState } = await useMultiFileAuthState(AUTH_DIR);
+        waited += 500;
+        if (freshState.creds.registered) {
+          clearInterval(checkRegistered);
+          fs.writeFileSync(STATUS_FILE, 'authenticated');
+          console.log('✓ Successfully authenticated with WhatsApp!');
+          console.log('  Credentials saved to store/auth/');
+          console.log('  You can now start the NanoClaw service.\n');
+          process.exit(0);
+        } else if (waited >= 15000) {
+          clearInterval(checkRegistered);
+          fs.writeFileSync(STATUS_FILE, 'authenticated');
+          console.log('✓ Successfully authenticated with WhatsApp!');
+          console.log('  Credentials saved to store/auth/');
+          console.log('  You can now start the NanoClaw service.\n');
+          process.exit(0);
+        }
+      }, 500);
     }
   });
 
